@@ -1,16 +1,14 @@
-# This file contains wrapper functions to run various haplotype assembly tools
+#This file contains wrapper functions to run various snp calling tools
 
 import time
 import sys
 import os
-import fileIO
 import subprocess
 import shutil
 
 # Runs (cmd) as a process, kills it after (timeout) seconds
-# kills process if memory hits 8 GB / 8M ??
-#def run_process(cmd, timeout=None, memlimit=7700000):
-def run_process(cmd, timeout=None, memlimit=1000000000):
+# kills process if memory hits 8 GB
+def run_process(cmd, timeout=None, memlimit=7700000):
     cmd += ' 2>&1'
     print(cmd)
     # credit to roland smith for method of retrieving stdout and stderr: http://stackoverflow.com/questions/14059558/why-is-python-no-longer-waiting-for-os-system-to-finish
@@ -28,18 +26,25 @@ def run_process(cmd, timeout=None, memlimit=1000000000):
     o = out.decode("ISO-8859-1")
     print(o)
     return runtime
+ 
+def run_whatsHap(path_to_bin, ref_file, bam_file, out_file, timeout=None):
 
-#yanbo 
-def run_whatsHap():
-    return
+    cmd = "samtools mpileup -q 20 -Q 0 {} | python3 {} --minabs 3 --minrel 0.25 --sample sample {} | awk ' ($1~/#/) || ($4~/[ACGT]/ && $5~/[ACGT]/)' >{}".format(bam_file, path_to_bin, ref_file ,out_file)
+    # the latest one has more steps
+    return run_process(cmd,timeout)
 
 #path_to_bin = /home/yulin/liyanbo/Tools/freebayes/bin/freebayes
-def run_freebyes(path_to_bin, ref_file, bam_file, out_file):
+def run_freebyes(path_to_bin, ref_file, bam_file, out_file, timeout=None):
     cmd = "{} --fasta-reference {} {} > {}".format(path_to_bin, ref_file, bam_file, out_file)
     return run_process(cmd,timeout)
 
+#pre: samtools index -@ 30 *bam
+def run_calling_v1(path_to_bin, ref_file, bam_file, out_file, timeout=None):
+    
+    cmd = "python3 {} {} {} 0.1 0.1 3 46".format(path_to_bin, bam_file, ref_file)
+    return run_process(cmd,timeout)
 
-def run_GATK():
+def run_GATK(timeout=None):
      
     return run_process(cmd,timeout)
 
@@ -53,7 +58,7 @@ def run_GATK():
 #bcftools mpileup -f reference.fa alignments.bam | bcftools call -mv -Ob -o calls.bcf
 
 
-def run_samtools():
+def run_samtools(timeout=None):
     return run_process(cmd,timeout)
 
 
