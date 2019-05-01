@@ -154,51 +154,27 @@ class Column:
         self._is_delete = 0
         self._is_mutation = 0
         s = self._sort_map_content()
-
-        #print (self._ref_pos)
-        #print (self._map_content)
-        #print (s) 
-        ''' 
-        if self._cov <= 10:
-            return 
-        '''    
-        # do not use it
-
-        #if len(s[0][1]) >= self._cov*self._a1 and s[0][0] != self._nucleotide:
-            #print ("reference position %s wrong" % (self._ref_pos))
-            #sys.exit("0.7 cov different from ref")
-    
-        # the latest way to find SNPs
-        #print (len(best_slope))
-        #print (35-7)
-        #sys.exit()
         
         lenS= len(s)
-
         if lenS ==1 and s[0][0] == '*':
             self._is_delete = 1
         elif lenS == 1:
             return
 
         if lenS >=2:
-            if self._cov >=7:
-                if len(s[0][1]) <= best_slope[min(self._cov,35)-7]*len(s[1][1]):
-                    if s[0][0] != '*' and s[1][0] != '*':
-                        self._is_mutation = 1
-                        return
+            #if len(s[0][1]) <= best_slope[min(self._cov,35)-7]*len(s[1][1]):
+            if len(s[0][1]) + len(s[1][1]) >= self._cov*0.85 and len(s[1][1]) >= self._cov *0.2:
+                if s[0][0] != '*' and s[1][0] != '*':
+                    self._is_mutation = 1
+                    return
+                else:
+                    self._is_delete = 1
+                    return
 
-        #for i in range(lenS):
-        for i in range(0,2): 
-            if s[i][0] == '*' and len(s[i][1]) >= self._get_threshold_for_delete():
-            #if s[i][0] == '*' and len(s[i][1]) >= 0.5:
-                self._is_delete = 1
-                break
-            '''
-            if s[i][0] == '*' and len(s[i][1]) >= self._cov*self._a1:
-                self._is_delete = 1
-                break
-            ''' 
-        ''' 
+        '''
+        if s[i][0] == '*' and len(s[i][1]) >= self._cov*self._a1:
+            self._is_delete = 1
+            break 
         # first round of guofei 
         if len(s) >=2 and len(s[0][1]) <= 2*len(s[1][1]):
             if s[0][0] == '*' or s[1][0] == '*':
@@ -223,8 +199,7 @@ class Column:
         '''      
  
     def _set_Lable(self):
-        
-       
+         
         self._set_Mutation_or_Delete()
       
         if self._is_Insert():
