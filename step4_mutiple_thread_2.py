@@ -47,64 +47,60 @@ def find_intersection_kmer(TGS, NGS):
             iT +=1
     return intersection       
 
-def decide_kmer(intersection): # kmer 0 or 1
-    
+def decide_kmer(intersection):
+    #kmer direction and kmer group A or group B
+    #each read for one kmer  one direction and one group
+    label = {}
     order = {}
-    zeroPos = {}
-    onePos = {}
-    seqOrder = 0
-    consensusPos = set() #
-    preEle = ""
-    for ele in intersection:
-        if ele == preEle:
-            consensusPos.add(ele)
-        preEle = ele
-        key = int(ele[:-1])
-        if key not in order:
-            order[key] = seqOrder
-            seqOrder += 1 
-        
-        if ele[-1] == 'A':
-            if key not in zeroPos:
-                zeroPos[key] = 0    
-            zeroPos[key] += 1
 
-        elif ele[-1] == 'B':
-            if key not in onePos:
-                onePos[key] = 0    
-            onePos[key] += 1
-            
-    tempIntersection = set(zeroPos).intersection(onePos)
+    #seqOrder = 0
+    for (ele, pos) in intersection:
+        key = ele[:-2]
+        l = ele[-2:]
+
+        if key not in order:
+            order[ key ] = pos
+            #seqOrder += 1 
+        if key not in label:
+            label[ key ] = {}
+            if l not in label[key]:
+                label[key][ l ] = 0
+            label[key][ l ] += 1
+ 
     Pos = {}
-    for c in tempIntersection:
-        if zeroPos[c] > onePos[c]:
-            Pos[c] = "0"
-        elif zeroPos[c] < onePos[c]:
-            Pos[c] = "1"
-        else:
-            
-            print ("check those kmer pair may FP ")
-            print (intersection)
-            print (zeroPos)
-            print (onePos)
-            print (consensusPos)
-            
-            #if str(c)+'A' in consensusPos or str(c)+'B' in consensusPos:
-                #sys.exit()
-    for c in onePos:
-        if c not in Pos:
-            Pos[c] = "1"
-            
-    for c in zeroPos:
-        if c not in Pos:
-            Pos[c] = "0"
+
+    for key in label:
+
+        #assert len((label[key])) == 1
+        maxSupport = 0
+        maxLabel = ""
+        values = sorted( label[key].values() )
+        if values.count(values[-1]) >= 2:
+            # more than one most support, consider a coincidence
+            print intersection
+            continue
+
+        # only keep kmer have one most support
+        for l in label[key]:
+            if label[key][l] > maxSupport:
+                maxLabel = l
+                maxSupport = label[key][l]
+        
+        if maxLabel[-1] == 'A':       
+            Pos[ key ]  = (maxLabel[0] , 0)
+
+        if maxLabel[-1] == 'B':       
+            Pos[ key ]  = (maxLabel[0] , 1)
+
+
     PosList = []
+
     orderList = sorted(order.items(), key=lambda item:item[1])
     for (k, o) in orderList: # according kmer happen in TGS reads order
-        PosList.append( (k, Pos[k]) )
+        PosList.append( (k+Pos[k][0], Pos[k][1], o) )
     #print PosList
     return PosList       
-
+    
 
 
 #class Reader(threading.Thread):
@@ -128,6 +124,7 @@ class Reader(Process):
                 if count % 1000 == 0:
                     print ("thread ", self.thread_id, "deal reads ", count) 
             elif state == 1:
+                #print readID
                 state = 0
                 seq = text.strip() 
                 seqLen = len(seq)
@@ -135,36 +132,42 @@ class Reader(Process):
                 for i in range(seqLen-21):
                     key = str(seq[i:i+21])
                     Rkey = tools.reverse(key)
-                    #Rflag = False 
-                    # reduce one binarySearch
-                    #if key > Rkey:
-                        #key = Rkey
-                        #Rflag = True
+                    Rflag = False 
+                    if key > Rkey:
+                        key = Rkey
+                        Rflag = True
+                    re = binarySearch(NGS, key)
+                    if re != -1:
+                        if Rflag == True:
+                            #print "1"
+                            temp = re[1][:-2] + tools.reverse_ward(re[1][-2]) + re[1][-1] # Rkmer direction is opposite with reads
+                            intersection.append( (temp, i) ) # i is position in reads
+                        else:    
+                            #print "2"
+                            intersection.append( (re[1], i) ) # i is position in reads
+                            
+                #print intersection
+                '''
+                Rseq = tools.reverse(seq)
+                intersection = []
+                for i in range(seqLen-21):
+                    key = str(Rseq[i:i+21])
                     re = binarySearch(NGS, key)
                     if re != -1:
                         intersection.append( re[1] )
-
-                    re = binarySearch(NGS, Rkey)
-                    if re != -1:
-                        intersection.append( re[1] )
-                    
-                    re = binarySearch(NGS, key[::-1])
-                    if re != -1:
-                        intersection.append( re[1] )
-
-                    re = binarySearch(NGS, Rkey[::-1])
-                    if re != -1:
-                        intersection.append( re[1] )
-
                 print intersection
+                '''
+
+                if len(intersection) > 0:
+                    print intersection
                 PosList = decide_kmer(intersection)
                 #if count == 10:
                     #sys.exit()
                 if len(PosList) <= 1:
                     continue
                 fout.write( "%s %s " % ( len(PosList), readID ) )
-                for (p, binary) in PosList:
-                    fout.write( "%s %s " % (p, binary) )
+                for (p, binary, pos) in PosList:
+                    fout.write( "%s %s %s " % (p, binary, pos) )
                 score=len(PosList)*'4'    
                 fout.write("%s\n" % score)
                 #print len(seq), len(kmers)
