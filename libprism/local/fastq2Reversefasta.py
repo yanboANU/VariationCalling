@@ -17,6 +17,8 @@ outFile = sys.argv[2]
 fout = open(outFile, "w")
 for record in SeqIO.parse(inFile, "fastq"):
     print(record.id)
+    if record.seq.count(N) > 0:
+        continue
     rec1 = SeqRecord(record.seq, id=record.id+"_1")
     rec2 = SeqRecord(tools.reverse(record.seq), id=record.id+"_2")
     #records.append(rec1)
