@@ -6,90 +6,97 @@
 #########################################################################
 #!/bin/bash
 import argparse
-
-from libprism.local import columns, contig
-from libprism.local.prepare import clouds_from_refhap, merge_clouds, print_clouds
-from libprism.local import tools
-from math import log, exp
-from pysam
+import os
+import sys
+from libprism.local import kmercalling
+#from libprism.local.prepare import clouds_from_refhap, merge_clouds, print_clouds
+from libprism.evaluate import read
+#from math import log, exp
+#from pysam
 import logging
 
 #############################################################################
 
-parser = argparse.ArgumentParser(description="Variation calling for Single-individual")
+parser = argparse.ArgumentParser(description="Variation calling for Single-individual based on NGS reads")
 
-parser.add_argument('--bam', help='path to alignment bam file', required=True)
-parser.add_argument('--ref', help='reference or scaffolds', required=True)
-parser.add_argument('--a1', help='delete rate', required=True)
-parser.add_argument('--a2', help='insert rate', required=True)
-parser.add_argument('--obLen', help='clouds to chromosomes', required=True)
-parser.add_argument('--cov', help='average coverage', required=True)
+#parser.add_argument('--bam', help='path to alignment bam file', required=True)
+#parser.add_argument('--ref', help='reference or scaffolds', required=True)
+parser.add_argument('--t1', help='kmer freq txt file (dsk result)', required=True)
+parser.add_argument('--t2', help='k-1mer freq txt file (dsk result)', required=True)
+parser.add_argument('--c1', help='low coverage', required=True)
+parser.add_argument('--c2', help='high coverage', required=True)
+parser.add_argument('--k', help='kmer size', required=True)
+#parser.add_argument('--o', help='output file prefix', required=True)
 
 args = parser.parse_args()
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
 #############################################################################
 
+lowCov, highCov = int(args.c1), int(args.c2)
+k = int(args.k)
 
-with open(args.ref) as f:
-    contigs = contig.read_Contig(f)
+#uniqKmer = kmercalling.pick_smaller_unique_kmer( args.t1, 
+#             lowCov, highCov)
 
-bamfile = pysam.AligmentFile(args.bam, "rb")
+#uniqK_1mer = kmercalling.pick_smaller_unique_kmer( args.t2, 
+#             lowCov, highCov)
 
-logging.info( "finish reading contigs and bam" )
+uniqKmer = read.read_multip_columns(args.t1) 
+uniqK_1mer = read.read_multip_columns(args.t2)
 
-a1 = float(args.a1)
-a2 = float(args.a2) 
-obLen = int(args.obLen) #defalt = 3
-averageCov = int(args.cov)
+logging.info( "finish reading (kmer cov) and (k-1mer cov) file" )
 
-DealLength = 5000000
-Overlap = 150000
-Divide = False
-        
-t = threading.Thread(target=loop, name='LoopTHread', args=(bamfile,contigs,a1,a2,obLen, averageCov))
-t.start()
-t.join()
+mapK, snpPair = kmercalling.find_snp_pair_kmer(uniqKmer, k)
+
+logging.info( "finish find snp" )
+indelPair = kmercalling.find_indel_pair_kmer(mapK, uniqK_1mer, k)
+
+logging.info( "finish find indel" )
+nonPair = kmercalling.find_non_pair_kmer(uniqKmer, k)
+
+logging.info( "finish find non snp" )
+hetePairs = set()
+f1 = "k_" + str(k)+"_pair.snp"
+fout = open(f1, "w")
+ID = 0
+for (k1, k2, c1, c2) in snpPair:
+    fout.write(">kmer_snp%s_1_cov_%s\n" % (ID, c1))
+    fout.write("%s\n" % ( k1 ) )
+    fout.write(">kmer_snp%s_2_cov_%s\n" % (ID, c2))
+    fout.write("%s\n" % ( k2 ) )
+    ID += 1
+    hetePairs.add( (k1, k2, "snp"+str(ID) ) )
+
+ID = 0
+for (k1, k2, c1, c2, c3, c4) in nonPair:
+    fout.write(">kmer_nonsnp%s_1_cov_%s_cov%s\n" % (ID, c1, c3))
+    fout.write("%s\n" % ( k1 ) )
+    fout.write(">kmer_nonsnp%s_2_cov_%s_cov%s\n" % (ID, c2, c4))
+    fout.write("%s\n" % ( k2 ) )
+    ID += 1
+    hetePairs.add( (k1, k2, "nonsnp"+str(ID) ) )
+ID = 0
+
+for (k1, k2, c1, c2) in indelPair:
+    fout.write(">kmer_snp%s_1_cov_%s\n" % (ID, c1))
+    fout.write("%s\n" % ( k1 ) )
+    fout.write(">kmer_snp%s_2_cov_%s\n" % (ID, c2))
+    fout.write("%s\n" % ( k2 ) )
+    ID += 1
+    hetePairs.add( (k1, k2, "indel"+str(ID) ) )
+
+fout.close()
+
+left_index, right_index = kmercalling.build_left_right_kmer_index(uniqKmer)
+extendPair = kmercalling.extend_pair(hetePairs, left_index, right_index, k)
 
 
-def loop(bamfile, contigs, a1, a2, obLen, averageCov):
+f2 = "k_" + str(k)+"_extend_pair.snp"
+with open(f2, "w") as fout:
+    for (k1, k2, ID) in extendPair:
+        fout.write(">kmer_%s_1\n" % (ID) )
+        fout.write("%s\n" % ( k1 ) )
+        fout.write(">kmer_%s_2\n" % (ID) )
+        fout.write("%s\n" % ( k2 ) )
 
-    for (contigName, contig) in contigs.items():
-        print ("dealing ", contigName)
-        if (contig._len < DealLength) or (Divide == False):
-            deal_one_part(bamfile, contig, 0, contig._len, a1, a2, obLen, averageCov)
-        else:
-            t2 = threading.Thread(target=loop2, name='Loop2THread', args=(bamfile,contig,a1,a2,obLen, averageCov))
-            t2.start()
-            t2.join()
-            
-def loop2(bamfile, contig, a1, a2, obLen, averageCov):
-    start = 0
-    
-    while start < contig._len:
-        end = min(start+DealLength, contig._len)
-        deal_one_part(bamfile, contig, start, end, a1, a2, obLen, averageCov)
-        start = start + DealLength - Overlap
-
-        
-def deal_one_part(bamfile, contig, start, end, a1, a2, obLen, averageCov):
-    time1 = time.clock()
-    columns = column.init_Columns(bamfile, contig, False, start, end, a1, a2)
-    time2 = time.clock()
-    print ( "init columns one part running %s Seconds" % (time2 - time1) )
-    p = phasing.Phasing(columns, contig, obLen)
-    p._pre_Process(start, end, contig._len, averageCov)
-    
-    time3 = time.clock()
-    print ( "phasing pre_process one part running %s Seconds" % (time3 - time2) )
-    print ( "pre process finish" )
-    
-    p._phasing()
-    time4 = time.clock()
-    print ( "phasing one part running %s Seconds" % (time4 - time3) )
-
-    print ( "finish phasing" )
-    p._write_result2(start, end) 
-
-    time5 = time.clock()
-    print ( "writing one part running %s Seconds" % (time5 - time4) )    
