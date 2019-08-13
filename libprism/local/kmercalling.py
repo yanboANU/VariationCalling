@@ -8,6 +8,7 @@
 
 import os
 import sys
+import copy
 import tools
 #from tools import *
 
@@ -45,8 +46,16 @@ def find_snp_pair_kmer(uniqKmers, k):
     pairKmers = []
     count1, countLarge2 =0, 0
     for key in m:
-        if len(m[key]) == 1:
+        mKeyLen = len(m[key])
+        if mKeyLen == 1:
             count1 += 1
+        '''    
+        else:   
+            onePair = []   
+            for (kmer, c) in m[key]:
+                onePair.append( (kmer,c) )
+            pairKmers.append(onePair)    
+        '''    
         elif len(m[key]) == 2:
             k1 = m[key][0][0]
             k2 = m[key][1][0]
@@ -55,7 +64,7 @@ def find_snp_pair_kmer(uniqKmers, k):
             else:
                 pairKmers.append( (k2, k1, m[key][1][1], m[key][0][1]) )
         else:
-            countLarge2 += 1
+            countLarge2 += 1    
 
     print ("kmer cannot find pair number", count1)       
     print ("more than one mutation in middle", countLarge2)
@@ -85,7 +94,8 @@ def find_indel_pair_kmer(mapK, uniqK_1mers, k):
             if (tools.hamming_distance(rightHalf, kmer[mid : -1 ] ) <= 1 or # mutation => delete 
                     tools.hamming_distance(leftHalf, kmer[1:mid+1]) <= 1 ):
                 mapK[key].remove((kmer, cov))
-        if len(mapK[key]) == 1:
+        #if len(mapK[key]) == 1:
+        if len(mapK[key]) >= 1:
             uniqMapK[key] = mapK[key]
 
     print ("after filter mapK")
@@ -101,12 +111,17 @@ def find_indel_pair_kmer(mapK, uniqK_1mers, k):
     print ( "map K-1 size", len(mapK_1) )
     for key in mapK_1:
         if key in uniqMapK:
-            assert len( mapK[key] ) == 1
-            kmer, c = mapK[key][0]
+            #assert len( mapK[key] ) == 1
+            #kmer, c = mapK[key][0]
+            ''' # covered by left half or right half shift one
             if kmer[:-1] == key or kmer[1:] == key: # remove head or tail, they are same
                 print (kmer, "remove head or tail same with remove at middle")
                 continue
-            indelPair.append( (kmer, key, c, mapK_1[key]) )
+            '''   
+            temp = copy.deepcopy(uniqMapK[key])
+            temp.append( (key, mapK_1[key]) )
+            #indelPair.append( (kmer, key, c, mapK_1[key]) )
+            indelPair.append( temp )
             #else:
             #    print ("more than one kmer corr. k-1mer", key, mapK_1[key], mapK[key])
     ''' 
@@ -178,12 +193,12 @@ def merge_pair(mapMerge):
                 Left1, Left2, covL1, covL2 = mapMerge[ (key1, key2) ][i]
                 Right1, Right2, covR1, covR2 = mapMerge[ (key1, key2) ][j]
                 l = len(key1)
-                if Left1.find(key1) == 0 and Right1.find(key1) != 0:
-                    assert Right1[-l:] == Left1[:l] and Right2[-l:] == Left2[:l]
+                #if Left1.find(key1) == 0 and Right1.find(key1) != 0:
+                #elif Right1.find(key1) == 0 and Left1.find(key1) != 0:
+                if Right1[-l:] == Left1[:l] and Right2[-l:] == Left2[:l]:
                     merge1 = Right1 + Left1[l:]
-                    merge2 = Right2 + Left2[l:]
-                elif Right1.find(key1) == 0 and Left1.find(key1) != 0:
-                    assert Left1[-l:] == Right1[:l] and Left2[-l:] == Right2[:l]
+                    merge2 = Right2 + Left2[l:] 
+                elif Left1[-l:] == Right1[:l] and Left2[-l:] == Right2[:l]:
                     merge1 = Left1 + Right1[l:]
                     merge2 = Left2 + Right2[l:]
                 else:
@@ -292,7 +307,7 @@ def extend_to_left(h1, left_index, right_index, k):
     return temp, add
 
 def extend_to_right(h1, left_index, right_index, k):
-
+    #print (type(k))
     mid = int(k/2)
     key = h1[-(k-1):]
     Rkey = tools.reverse(key)
@@ -330,13 +345,25 @@ def extend_to_right(h1, left_index, right_index, k):
 
 def extend_pair(hetePairs, left_index, right_index, k):
     extendPair, extendSet = [], set()
+    #print (type(k))
+    for (kmers, ID) in hetePairs:
+        pair = []
+        for h in kmers:
+            temp, add = extend_to_right(h, left_index, right_index, k)
+            ekmer, add = extend_to_left(temp, left_index, right_index, k)
+            pair.append(ekmer)
+        p = sorted(pair)
+        if tuple(p) not in extendSet:
+            extendSet.add(tuple(p))
+            extendPair.append( (p, ID) )
+    '''
     for (h1, h2, ID) in hetePairs:
         temp1, add1 = extend_to_right(h1, left_index, right_index, k)
         temp2, add2 = extend_to_right(h2, left_index, right_index, k)
         minl = min (len(add1), len(add2) )
         if add1[:minl] != add2[:minl]:
             print (add1, add2)
-        #if hamming_distance
+        #if hamming_distance  # bug
         ekmer1, add1 = extend_to_right(temp1, left_index, right_index, k)
         ekmer2, add2 = extend_to_right(temp2, left_index, right_index, k)
         
@@ -347,6 +374,7 @@ def extend_pair(hetePairs, left_index, right_index, k):
         if (small1, small2) not in extendSet:
             extendSet.add( (small1, small2) )
             extendPair.append( (small1, small2, ID) )
+    '''        
     return extendPair   
 
 
