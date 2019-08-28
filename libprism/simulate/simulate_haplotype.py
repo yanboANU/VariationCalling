@@ -103,48 +103,56 @@ def simulate_haplotypes(refFile, snpFile, indelFile, indelLen=1):
     adjustPos2 = 0
     assert indelLen == 1
     snpCount, insertCount, delCount = 0, 0, 0
+    prePos = -1
     for (pos, s1, s2, homo) in sortedMutations:
         #print pos, s1, s2
+        if pos == prePos:
+            continue
         assert ( record.seq[pos-1].upper() == s1[0:1] )
         if len(s1) == 1 and len(s2) == 1:
             snpCount += 1
             if homo == "1|0" or homo == "1/0":
-                print adjustPos1, pos
+                #print adjustPos1, pos
                 assert(seqH1List[pos + adjustPos1 -1].upper() == s1)
                 seqH2List[pos + adjustPos2 -1] = s2
             elif homo == "0|1" or homo == "0/1":
                 assert(seqH2List[pos + adjustPos2 -1].upper() == s1)
                 seqH1List[pos + adjustPos1 -1] = s2
-        if len(s1) == 1 and len(s2) == 2: # insert
+            prePos = pos    
+        elif len(s1) == 1 and len(s2) == 2: # insert
             insertCount += 1
             assert s1 == s2[0:1]
             if homo == "1|0" or homo == "1/0":
                 assert(seqH1List[pos + adjustPos1 -1].upper() == s1)
                 seqH2List.insert(pos + adjustPos2, s2[1:2])
                 adjustPos2 += 1
-                print "insert at H2"
-                print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
+                #print "insert at H2"
+                #print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
             elif homo == "0|1" or homo == "0/1":
                 assert(seqH2List[pos + adjustPos2 -1].upper() == s1)
                 seqH1List.insert(pos + adjustPos1, s2[1:2] )
                 adjustPos1 += 1
-                print "insert at H1"
-                print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
-        if len(s1) == 2 and len(s2) == 1: # delete
+                #print "insert at H1"
+                #print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
+            prePos = pos    
+        elif len(s1) == 2 and len(s2) == 1: # delete
             delCount += 1
             assert s1[0:1] == s2
             if homo == "1|0" or homo == "1/0":
                 assert( ''.join(ele.upper() for ele in seqH1List[pos + adjustPos1 -1 : pos+adjustPos1+1]) == s1 )
                 seqH2List = seqH2List[:pos+adjustPos2 ] + seqH2List[pos+adjustPos2+1:]
                 adjustPos2 -= 1
-                print "delete at H2"
-                print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
+                #print "delete at H2"
+                #print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
             elif homo == "0|1" or homo == "0/1":
+                #print seqH2List[pos + adjustPos2 -1 : pos+adjustPos2+1], s1
+                #print ''.join(ele.upper() for ele in seqH2List[pos + adjustPos2 -1 : pos+adjustPos2+1])
                 assert( ''.join(ele.upper() for ele in seqH2List[pos + adjustPos2 -1 : pos+adjustPos2+1]) == s1)
                 seqH1List = seqH1List[:pos+adjustPos1 ] + seqH1List[pos+adjustPos1+1:]
                 adjustPos1 -= 1
-                print "delete at H1"
-                print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
+                #print "delete at H1"
+                #print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
+            prePos = pos    
 
     print ("snp number: %s; insert number: %s; delete number: %s" % (snpCount, insertCount, delCount) )
     seqH1 = ''.join(ele for ele in seqH1List)
