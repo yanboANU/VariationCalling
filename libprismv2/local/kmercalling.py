@@ -169,8 +169,7 @@ def update_map_merge(left_i, left_j, key1, key2, mapMerge):
 def build_map_merge(left, k):
     mapMerge= {}
     mid = int(k/2)
-    candidateNonPair = []
-    #fout = open("non_pair_non_merge", "w")
+    hisMap = {}
     for key in left:
         groupSize = len(left[key])
         for i in range(0, groupSize-1):
@@ -182,7 +181,6 @@ def build_map_merge(left, k):
                 dis = 0
                 cnt = mid + 1
                 diffPos = 0
-                #assert k == len(k1)
                 while cnt < k:
                     if k1[cnt] != k2[cnt]:
                         dis += 1
@@ -194,22 +192,19 @@ def build_map_merge(left, k):
                     key1, key2 = k1[ diffPos - mid : ] , k2[ diffPos - mid : ]
                     mink1, mink2 = tools.get_smaller_pair_kmer(k1, k2)
                     #fout.write("%s %s %s %s\n" % (mink1, mink2, cov1, cov2) )
-                    candidateNonPair.append((mink1, mink2))
+                    #candidateNonPair.append((mink1, mink2))
+                    if mink1 not in hisMap:
+                        hisMap[mink1] = 0
+                    if mink2 not in hisMap:
+                        hisMap[mink2] = 0
+                    hisMap[mink1] += 1
+                    hisMap[mink2] += 1
                     update_map_merge(left[key][i], left[key][j], key1, key2, mapMerge)
                     #mappedKmer.add(k1)
                     #mappedKmer.add(k2)
                     #break #3 lines add 22 Aug. a kmer only allow one kmer hamming distance equal to 2
     
     # for debug, can be deleted            
-    print ("candidate non pair", len(candidateNonPair))
-    hisMap = {}
-    for (ele1, ele2) in candidateNonPair:
-        if ele1 not in hisMap:
-            hisMap[ele1] = 0
-        if ele2 not in hisMap:
-            hisMap[ele2] = 0
-        hisMap[ele1] += 1
-        hisMap[ele2] += 1
     highRepeat = set()
     for key in hisMap:
         if hisMap[key] > 2:
