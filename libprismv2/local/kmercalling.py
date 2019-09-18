@@ -49,8 +49,8 @@ def find_snp_pair_kmer(uniqKmers, k, left_index, right_index):
         if mKeyLen == 1:
             count1 += 1
         elif mKeyLen == 2:
-            k1 = m[key][0][0]
-            k2 = m[key][1][0]
+            k1, cov1 = m[key][0]
+            k2, cov2 = m[key][1]
             if k1[1:] == k2[:-1] or k1[:-1]==k2[1:]:
                 print (k1, k2)
                 continue
@@ -60,9 +60,9 @@ def find_snp_pair_kmer(uniqKmers, k, left_index, right_index):
             if flag == False:
                 continue
             if k1 < k2:
-                pairKmers.append( (k1, k2, ek1, ek2, m[key][0][1], m[key][1][1]) )
+                pairKmers.append( (k1, k2, ek1, ek2, cov1, cov2) )
             else:
-                pairKmers.append( (k2, k1, ek2, ek1, m[key][1][1], m[key][0][1]) )
+                pairKmers.append( (k2, k1, ek2, ek1, cov2, cov1) )
         else:
             countLarge2 += 1
     
@@ -71,10 +71,16 @@ def find_snp_pair_kmer(uniqKmers, k, left_index, right_index):
     fout = open("snp_pair", "w")
     sortedKmers = sorted(pairKmers)
     ID = 1
+    #leftKmer = uniqKmers
+    usedKmers = set()
     for (k1, k2, ek1, ek2, c1, c2) in sortedKmers:   
+        #assert (k1, c1) in uniqKmers
+        #assert (k1, c1) in leftKmer
+        usedKmers.add((k1, c1))
+        usedKmers.add((k2, c2))
         fout.write("%s %s %s %s %s %s\n" % (k1, k2, ek1, ek2, c1, c2))
     fout.close()        
-    return m, pairKmers
+    return m, sortedKmers, set(uniqKmers)-usedKmers
     
 
 '''
@@ -213,8 +219,9 @@ def build_map_merge(left, k):
     #fout.close()                
     return mapMerge, highRepeat
 
-def merge_pair(mapMerge, highRepeat, k, left_index, right_index):
+def merge_pair(mapMerge, highRepeat, k, left_index, right_index, uniqKmers):
     pairSet, nonPair = set(), []
+    usedKmers = set()
     for (key1, key2) in mapMerge:
         mlen = len( mapMerge [ (key1, key2) ] )
         if mlen > 2 or mlen==1: # one key only allow a pair
@@ -241,8 +248,7 @@ def merge_pair(mapMerge, highRepeat, k, left_index, right_index):
             merge1 = Left1 + Right1[l:]
             merge2 = Left2 + Right2[l:]
         else:
-            #print ("one side")
-            continue
+            continue #print ("one side")
          
         #TTTTTTTTTTTTTTTCAAAAAAAAAAAAAAAA # also useful SNP and indel 
         #TTTTTTTTTTTTTTTTCAAAAAAAAAAAAAAA 
@@ -253,10 +259,16 @@ def merge_pair(mapMerge, highRepeat, k, left_index, right_index):
         ek1, ek2, flag = extend_one_pair(small1, small2, left_index, right_index, k, 0)
         if flag == False:
             continue
+        #leftKmer = uniqKmer
         if (small1, small2) not in pairSet:
+            usedKmers.add((Lmin1, covL1))
+            usedKmers.add((Lmin2, covL2))
+            usedKmers.add((Rmin1, covR1))
+            usedKmers.add((Rmin2, covR2))
             pairSet.add( (small1, small2) )
             nonPair.append( (small1, small2, ek1, ek2, covL1, covL2, covR1, covR2) )
-    return nonPair        
+    print "for non snp, used kmer number", len(usedKmers)        
+    return nonPair, uniqKmers-usedKmers
 
 
 def find_non_pair_kmer(uniqKmer, k, left_index, right_index):
@@ -278,7 +290,7 @@ def find_non_pair_kmer(uniqKmer, k, left_index, right_index):
     print ("left size", len(left) )
     mapMerge, highRepeat = build_map_merge(left, k)
     print ("map Merge size", len(mapMerge) )
-    nonPair = merge_pair(mapMerge, highRepeat, k, left_index, right_index) 
+    nonPair, leftKmer = merge_pair(mapMerge, highRepeat, k, left_index, right_index, uniqKmer) 
 
     print ("non pair size", len(nonPair) )
     fout = open("non_pair", "w")
@@ -288,7 +300,7 @@ def find_non_pair_kmer(uniqKmer, k, left_index, right_index):
         fout.write("%s %s %s %s %s %s %s %s\n" % (k1,k2,ek1,ek2,c1,c2,c3,c4) )
     fout.close()        
     
-    return nonPair, highRepeat
+    return nonPair, highRepeat, leftKmer
 
 
 def build_left_right_kmer_index(uniqKmer):
