@@ -84,7 +84,9 @@ def simulate_haplotypes_only_snp(refFile, snpFile):
         for (pos, s1, s2, homo) in test:
             print pos, record.seq[pos-1], s1, s2,
     '''
-
+#chr1   35931175    .   AT  A
+#chr1   35931176    rs11264189  T   A
+#both in ground-truth,  
 #def simulate_haplotypes_(refFile, snpFile, indelFile):
 def simulate_haplotypes(refFile, snpFile, indelFile, indelLen=1): 
     # indelLen=-1, consider all indel in vcf, indelLen = 1, only consider indelLen = 1
@@ -112,7 +114,11 @@ def simulate_haplotypes(refFile, snpFile, indelFile, indelLen=1):
         if len(s1) == 1 and len(s2) == 1:
             snpCount += 1
             if homo == "1|0" or homo == "1/0":
-                #print adjustPos1, pos
+                print adjustPos1, pos
+                if seqH1List[pos + adjustPos1 -1].upper() != s1:
+                    print prePos, pos, "beacuse of neigbor, do not add this mutation"
+                    snpCount -= 1
+                    continue
                 assert(seqH1List[pos + adjustPos1 -1].upper() == s1)
                 seqH2List[pos + adjustPos2 -1] = s2
             elif homo == "0|1" or homo == "0/1":
@@ -126,14 +132,14 @@ def simulate_haplotypes(refFile, snpFile, indelFile, indelLen=1):
                 assert(seqH1List[pos + adjustPos1 -1].upper() == s1)
                 seqH2List.insert(pos + adjustPos2, s2[1:2])
                 adjustPos2 += 1
-                #print "insert at H2"
-                #print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
+                print "insert at H2"
+                print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
             elif homo == "0|1" or homo == "0/1":
                 assert(seqH2List[pos + adjustPos2 -1].upper() == s1)
                 seqH1List.insert(pos + adjustPos1, s2[1:2] )
                 adjustPos1 += 1
-                #print "insert at H1"
-                #print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
+                print "insert at H1"
+                print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
             prePos = pos    
         elif len(s1) == 2 and len(s2) == 1: # delete
             delCount += 1
@@ -142,16 +148,16 @@ def simulate_haplotypes(refFile, snpFile, indelFile, indelLen=1):
                 assert( ''.join(ele.upper() for ele in seqH1List[pos + adjustPos1 -1 : pos+adjustPos1+1]) == s1 )
                 seqH2List = seqH2List[:pos+adjustPos2 ] + seqH2List[pos+adjustPos2+1:]
                 adjustPos2 -= 1
-                #print "delete at H2"
-                #print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
+                print "delete at H2"
+                print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
             elif homo == "0|1" or homo == "0/1":
                 #print seqH2List[pos + adjustPos2 -1 : pos+adjustPos2+1], s1
                 #print ''.join(ele.upper() for ele in seqH2List[pos + adjustPos2 -1 : pos+adjustPos2+1])
                 assert( ''.join(ele.upper() for ele in seqH2List[pos + adjustPos2 -1 : pos+adjustPos2+1]) == s1)
                 seqH1List = seqH1List[:pos+adjustPos1 ] + seqH1List[pos+adjustPos1+1:]
                 adjustPos1 -= 1
-                #print "delete at H1"
-                #print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
+                print "delete at H1"
+                print "pos, adjustPos1, adjustPos2", pos, adjustPos1, adjustPos2
             prePos = pos    
 
     print ("snp number: %s; insert number: %s; delete number: %s" % (snpCount, insertCount, delCount) )
