@@ -8,6 +8,12 @@ To download **KmerCalling**, you have to install the following software
 <pre><code>
 DSK 
 findGSE 
+wget https://github.com/schneebergerlab/findGSE/archive/master.zip
+unzip master.zip
+R
+install.packages("findGSE-master.tar.gz")
+q("no")
+
 </code></pre>
 
 Then clone the **Kmercalling** repository to your machine.
