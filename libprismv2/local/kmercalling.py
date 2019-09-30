@@ -13,7 +13,7 @@ from libprismv2.local import tools
 #from tools import *
 
 def pick_smaller_unique_kmer(input_filename, low, high):
-    uniqKmer = []
+    uniqKmer = {}
     with open(input_filename, "r") as f:
         for line in f:
             words = line.strip().split()
@@ -24,7 +24,8 @@ def pick_smaller_unique_kmer(input_filename, low, high):
             newkmer = tools.reverse(kmer)
             if kmer > newkmer:    
                 kmer = newkmer
-            uniqKmer.append( (kmer, coverage) )
+            #uniqKmer.append( (kmer, coverage) )
+            uniqKmer[kmer] = coverage
     return uniqKmer
 
 # hamming distance = 1
@@ -32,33 +33,39 @@ def find_snp_pair_kmer(uniqKmers, k, left_index, right_index):
     m={}
     mid = int(k/2)
     print ("before build mapK")
-    for (kmer, cov) in uniqKmers:
+    for kmer in uniqKmers:
         #Rkmer = tools.reverse(kmer) # these two lines 
         #assert Rkmer >= kmer        # can be deleted  
         key= kmer[:mid] + kmer[mid+1:]
         if key not in m:
             m[key] = []
-        m[key].append( (kmer, cov) )
+        m[key].append( kmer )
     print ("after build mapK")
     print ("unique kmer number", len(uniqKmers))        
     print ("total number possible pair kmer", len(m))    
     pairKmers = []
     count1, countLarge2 =0, 0
+    usedKmers = []
     for key in m:
         mKeyLen = len(m[key])
         if mKeyLen == 1:
             count1 += 1
         elif mKeyLen == 2:
-            k1, cov1 = m[key][0]
-            k2, cov2 = m[key][1]
+            k1, k2 = m[key][0], m[key][1]
+            cov1, cov2 = uniqKmers[k1], uniqKmers[k2]
             if k1[1:] == k2[:-1] or k1[:-1]==k2[1:]:
                 print (k1, k2)
                 continue
             # if you want to find more, don't use this
             # use this, find less but high accuracy
-            ek1, ek2, flag = extend_one_pair(k1, k2, left_index, right_index,k, 0)
+            ek1, ek2, flag, group1, group2 = extend_one_pair(k1, k2, left_index, right_index,k, 0)
+            #print "group size", len(group1), len(group2)
+            #print group1, group2
+            #sys.exit()
             if flag == False:
                 continue
+            usedKmers.extend( group1 )
+            usedKmers.extend( group2 )
             if k1 < k2:
                 pairKmers.append( (k1, k2, ek1, ek2, cov1, cov2) )
             else:
@@ -72,15 +79,14 @@ def find_snp_pair_kmer(uniqKmers, k, left_index, right_index):
     sortedKmers = sorted(pairKmers)
     ID = 1
     #leftKmer = uniqKmers
-    usedKmers = set()
     for (k1, k2, ek1, ek2, c1, c2) in sortedKmers:   
         #assert (k1, c1) in uniqKmers
         #assert (k1, c1) in leftKmer
-        usedKmers.add((k1, c1))
-        usedKmers.add((k2, c2))
         fout.write("%s %s %s %s %s %s\n" % (k1, k2, ek1, ek2, c1, c2))
-    fout.close()        
-    return m, sortedKmers, set(uniqKmers)-usedKmers
+    fout.close()       
+
+    print "for snp, used kmer number", len(usedKmers)        
+    return m, sortedKmers, set(uniqKmers)-set(usedKmers)
     
 
 '''
@@ -98,41 +104,32 @@ for key in mapK:
 
 print ("after filter mapK")
 '''
-def find_indel_pair_kmer(uniqKmers, uniqK_1mers, k, left_index, right_index, threshold): #, highRepeat):    
+def find_indel_pair_kmer(uniqKmers, kmerCov, uniqK_1mers, k, left_index, right_index, threshold): #, highRepeat):    
     mid = int(k/2)
     mapK = {}
-    for (temp, cov) in uniqKmers:
+    print "test"
+    for temp in uniqKmers:
         leftHalf = temp[:mid]
-        rightHalf = temp[mid+1:]
-        
-        if (tools.hamming_distance(rightHalf, temp[mid : -1 ] ) <= 2 or # mutation => delete 
-                tools.hamming_distance(leftHalf, temp[1:mid+1]) <= 2 ):
+        rightHalf = temp[mid+1:] 
+        #if (tools.hamming_distance(rightHalf, temp[mid : -1 ] ) <= 2 or # mutation => delete 
+        #        tools.hamming_distance(leftHalf, temp[1:mid+1]) <= 2 ):
+        #    continue
+        if leftHalf.count(leftHalf[0]) >= mid-1 or rightHalf.count(rightHalf[0]) >= mid-1:
+            print temp
             continue
-        #if temp in highRepeat:
-        #    continue
-        #GC = (temp.count('C')+temp.count('G'))/float(k)
-        #if GC < 0.05 or GC > 0.85:
-        #    continue
         key = leftHalf + rightHalf
-        #Rkey = tools.reverse(key)
-        #assert key <= Rkey
         if key not in mapK:
             mapK[key] = []
-        mapK[key].append( (temp, cov) )
-    mapK_1 = {} 
+        mapK[key].append( temp )
     print ( "uniq K-1 mer size", len(uniqK_1mers) )
-    for (key, cov) in uniqK_1mers:        
-        mapK_1[key] = cov
     indelPair = []
-    print ( "map K-1 size", len(mapK_1) )
-    print ( "check", k/4)
-    for key in mapK_1:
+    for key in uniqK_1mers:
         if key in mapK and len( mapK[key] ) == 1:
-            kmer, c = mapK[key][0]
-            ek1, ek2, flag = extend_one_pair(kmer, key, left_index, right_index,k, threshold)
+            kmer = mapK[key][0]
+            ek1, ek2, flag, group1, group2 = extend_one_pair(kmer, key, left_index, right_index,k, threshold)
             if flag == False:
                 continue
-            indelPair.append( (kmer, key, ek1, ek2, c, mapK_1[key]) )
+            indelPair.append( (kmer, key, ek1, ek2, kmerCov[kmer], uniqK_1mers[key]) )
      
     fout = open("indel_pair", "w")
     sortedKmers = sorted(indelPair)
@@ -143,8 +140,8 @@ def find_indel_pair_kmer(uniqKmers, uniqK_1mers, k, left_index, right_index, thr
 
 def update_map_merge(left_i, left_j, key1, key2, mapMerge):
     
-    k1, cov1 = left_i
-    k2, cov2 = left_j
+    k1 = left_i
+    k2 = left_j
     '''
     if key2 < key1:
         key1, key2 = key2, key1
@@ -159,13 +156,13 @@ def update_map_merge(left_i, left_j, key1, key2, mapMerge):
         mapMerge[ (minkey1, minkey2) ] = []   
     Rk1, Rk2 = tools.reverse(k1), tools.reverse(k2)
     if k1.count(minkey1) == 1 and k2.count(minkey2) == 1:
-        mapMerge[ (minkey1, minkey2) ].append( (k1, k2, cov1, cov2) )
+        mapMerge[ (minkey1, minkey2) ].append( (k1, k2) )
     elif k1.count(minkey2) == 1 and k2.count(minkey1) == 1: 
-        mapMerge[ (minkey1, minkey2) ].append( (k2, k1, cov2, cov1) )
+        mapMerge[ (minkey1, minkey2) ].append( (k2, k1) )
     elif Rk1.count(minkey1) == 1 and Rk2.count(minkey2) == 1:   
-        mapMerge[ (minkey1, minkey2) ].append( (Rk1, Rk2, cov1, cov2) )
+        mapMerge[ (minkey1, minkey2) ].append( (Rk1, Rk2) )
     elif Rk1.count(minkey2) == 1 and Rk2.count(minkey1) == 1:
-        mapMerge[ (minkey1, minkey2) ].append( (Rk2, Rk1, cov2, cov1) )
+        mapMerge[ (minkey1, minkey2) ].append( (Rk2, Rk1) )
     else:
         print ("something wrong 1")
         sys.exit()
@@ -180,8 +177,8 @@ def build_map_merge(left, k):
         groupSize = len(left[key])
         for i in range(0, groupSize-1):
             for j in range(i+1, groupSize):
-                k1, cov1 = left[key][i]
-                k2, cov2 = left[key][j]
+                k1 = left[key][i]
+                k2 = left[key][j]
                 if k1[mid] == k2[mid]: #or (k1 in mappedKmer) or (k2 in mappedKmer):
                     continue
                 dis = 0
@@ -219,21 +216,23 @@ def build_map_merge(left, k):
     #fout.close()                
     return mapMerge, highRepeat
 
-def merge_pair(mapMerge, highRepeat, k, left_index, right_index, uniqKmers):
+def merge_pair(mapMerge, highRepeat, k, left_index, right_index, uniqKmers, kmerCov):
     pairSet, nonPair = set(), []
-    usedKmers = set()
+    usedKmers = []
     for (key1, key2) in mapMerge:
         mlen = len( mapMerge [ (key1, key2) ] )
         if mlen > 2 or mlen==1: # one key only allow a pair
             continue
-        Left1, Left2, covL1, covL2 = mapMerge[ (key1, key2) ][0]
-        Right1, Right2, covR1, covR2 = mapMerge[ (key1, key2) ][1]
+        Left1, Left2 = mapMerge[ (key1, key2) ][0]
+        Right1, Right2 = mapMerge[ (key1, key2) ][1]
         l = len(key1)
 
         Lmin1 = min(Left1, tools.reverse(Left1))
         Lmin2 = min(Left2, tools.reverse(Left2))
         Rmin1 = min(Right1, tools.reverse(Right1))
         Rmin2 = min(Right2, tools.reverse(Right2))
+        covL1, covL2 = kmerCov[Lmin1], kmerCov[Lmin2]
+        covR1, covR2 = kmerCov[Rmin1], kmerCov[Rmin2]
         if (Lmin1 in highRepeat or Lmin2 in highRepeat or
                 Rmin1 in highRepeat or Rmin2 in highRepeat):
             continue
@@ -255,42 +254,42 @@ def merge_pair(mapMerge, highRepeat, k, left_index, right_index, uniqKmers):
         if merge1[1:] == merge2[:-1] or merge1[:-1]==merge2[1:]:
             print (merge1, merge2)
             continue
-        small1, small2 = tools.get_smaller_pair_kmer(merge1, merge2)
-        ek1, ek2, flag = extend_one_pair(small1, small2, left_index, right_index, k, 0)
+        small1, small2 = tools.get_smaller_pair_kmer(merge1, merge2) 
+        ek1, ek2, flag, group1, group2 = extend_one_pair(small1, small2, left_index, right_index, k, 0)
+        #print "group size for non snp", len(group1), len(group2)
+        #print group1, group2
         if flag == False:
             continue
         #leftKmer = uniqKmer
         if (small1, small2) not in pairSet:
-            usedKmers.add((Lmin1, covL1))
-            usedKmers.add((Lmin2, covL2))
-            usedKmers.add((Rmin1, covR1))
-            usedKmers.add((Rmin2, covR2))
+            usedKmers.extend( group1 )
+            usedKmers.extend( group2 )
             pairSet.add( (small1, small2) )
             nonPair.append( (small1, small2, ek1, ek2, covL1, covL2, covR1, covR2) )
     print "for non snp, used kmer number", len(usedKmers)        
-    return nonPair, uniqKmers-usedKmers
+    return nonPair, uniqKmers-set(usedKmers)
 
 
-def find_non_pair_kmer(uniqKmer, k, left_index, right_index):
+def find_non_pair_kmer(uniqKmer, kmerCov, k, left_index, right_index):
 
     mid = int(k/2)
     left = {}
-    for (kmer, cov) in uniqKmer:
+    for kmer in uniqKmer:
         leftKey = kmer[:mid] 
         if leftKey not in left:
             left[ leftKey ] = []  
-        left[leftKey].append( (kmer, cov) )
+        left[leftKey].append( (kmer) )
         Rkmer = tools.reverse(kmer)
         leftKey = Rkmer[:mid] 
         if leftKey not in left:
             left[ leftKey ] = []  
-        left[leftKey].append( (Rkmer,cov) )
+        left[leftKey].append( (Rkmer) )
     
     #build map: overlap is key
     print ("left size", len(left) )
     mapMerge, highRepeat = build_map_merge(left, k)
     print ("map Merge size", len(mapMerge) )
-    nonPair, leftKmer = merge_pair(mapMerge, highRepeat, k, left_index, right_index, uniqKmer) 
+    nonPair, leftKmer = merge_pair(mapMerge, highRepeat, k, left_index, right_index, uniqKmer, kmerCov) 
 
     print ("non pair size", len(nonPair) )
     fout = open("non_pair", "w")
@@ -307,7 +306,7 @@ def build_left_right_kmer_index(uniqKmer):
     
     left_index , right_index = {}, {}
     count = 0
-    for (kmer, cov) in uniqKmer:
+    for kmer in uniqKmer:
         key = kmer[:-1]
         if key not in left_index:
             left_index[key] = list()
@@ -328,13 +327,14 @@ def build_left_right_kmer_index(uniqKmer):
     return left_uniq_index, right_uniq_index
 
 
-def extend_to_left(h1, left_index, right_index, k):
+def extend_to_left(h1, left_index, right_index, k, group):
     
     mid = int(k/2)
     key = h1[ : (k-1)]
     Rkey = tools.reverse(key)
     temp, Rtemp = h1, tools.reverse(h1)
     add, Radd = "", ""
+    #group.add(h1)
     for i in range(0, mid):
         flag, flagR = False, False
         if key in right_index :
@@ -351,11 +351,13 @@ def extend_to_left(h1, left_index, right_index, k):
             add = right_index[key][0] + add
             Radd = tools.reverse(add) 
             key = temp[: (k-1) ]
+            group.append(temp[:k])
             Rkey = tools.reverse(key)
         elif flag == False and flagR == True: 
             Radd = Radd + left_index[Rkey][0]
             add = tools.reverse(Radd)
             Rkey = Rtemp[-(k-1):]
+            group.append(Rtemp[-k:])
             key = tools.reverse(Rkey)
         elif flag == flagR:
             if flag == True:
@@ -364,7 +366,7 @@ def extend_to_left(h1, left_index, right_index, k):
             break
     return temp, add
 
-def extend_to_right(h1, left_index, right_index, k):
+def extend_to_right(h1, left_index, right_index, k, group):
 
     mid = int(k/2)
     key = h1[-(k-1):]
@@ -387,11 +389,13 @@ def extend_to_right(h1, left_index, right_index, k):
             add = add + left_index[key][0]
             Radd = tools.reverse(add)
             key = temp[-(k-1):]
+            group.append(temp[-k:])
             Rkey = tools.reverse(key)
         elif flag == False and flagR == True: 
             Radd = right_index[Rkey][0] + Radd
             add = tools.reverse(Radd)
             Rkey = Rtemp[:(k-1)]
+            group.append(Rtemp[:k])
             key = tools.reverse(Rkey)
         elif flag == flagR:
             if flag == True:
@@ -402,9 +406,25 @@ def extend_to_right(h1, left_index, right_index, k):
    
 def extend_one_pair(h1,h2,left_index, right_index,k, threshold):
 
-    flag = True 
-    temp1, add1 = extend_to_left(h1, left_index, right_index, k)
-    temp2, add2 = extend_to_left(h2, left_index, right_index, k)
+    flag = True
+    group1, group2 = [], []
+    if len(h1) == k: 
+        group1.append(h1)
+    if len(h2) == k:
+        group2.append(h2)
+    if len(h1)>k:       
+        lenh1 = len(h1)
+        for i in range(lenh1-k+1):
+            k1temp =h1[i:i+k]
+            group1.append(min(k1temp, tools.reverse(k1temp) ) )
+    if len(h2)>k:
+        lenh2 = len(h2)
+        for i in range(lenh2-k+1):
+            k2temp = h2[i:i+k]
+            group2.append(min(k2temp, tools.reverse(k2temp) ) )
+
+    temp1, add1 = extend_to_left(h1, left_index, right_index, k, group1)
+    temp2, add2 = extend_to_left(h2, left_index, right_index, k, group2)
     minL = min (len(add1), len(add2) )
     # some TP add content shift one position equal 
     if minL!= 0 and add1[-minL:] != add2[-minL:]:
@@ -412,8 +432,8 @@ def extend_one_pair(h1,h2,left_index, right_index,k, threshold):
     if minL == int(k/2) and tools.hamming_distance(add1, add2) == 1:
     #if minL == int(k/2) and tools.min_edit_distance(add1, add2) <= 2:
         flag = True    
-    ekmer1, add1R = extend_to_right(temp1, left_index, right_index, k)
-    ekmer2, add2R = extend_to_right(temp2, left_index, right_index, k) 
+    ekmer1, add1R = extend_to_right(temp1, left_index, right_index, k, group1)
+    ekmer2, add2R = extend_to_right(temp2, left_index, right_index, k, group2) 
     minR = min (len(add1R), len(add2R) )
     if minR!=0 and add1R[0:minR] != add2R[0:minR]:
         flag = False
@@ -425,7 +445,7 @@ def extend_one_pair(h1,h2,left_index, right_index,k, threshold):
         flag = False
     if min(minL, minR) <= threshold:
         flag = False
-    return ekmer1, ekmer2, flag
+    return ekmer1, ekmer2, flag, group1, group2
 
 def extend_pair(hetePairs, left_index, right_index, k):
     extendPair, extendSet = [], set()
