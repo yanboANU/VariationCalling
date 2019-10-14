@@ -5,7 +5,7 @@
 # Created Time: Thu 30 May 2019 15:34:53 AEST
 #########################################################################
 #!/bin/bash
-import tools
+from libprismv2.local import tools
 
 def read_snp_sam(filename):
     #bothHappen, oneHappen, zeroHappen = 0, 0, 0
@@ -46,16 +46,16 @@ def read_snp_sam(filename):
             if state == 2:
                 state = 0
                 if align_0 == "31" and align_1 == "31":
-                    print "both exactly happen:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1
+                    print ("both exactly happen:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1)
                     bothHappen.append( (ID, refPos_0, refPos_1, kmer_0, kmer_1) )
                 elif align_0 == "31":
-                    print "one exactly happen:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1
+                    print ("one exactly happen:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1)
                     oneHappend.append( (ID, refPos_0, kmer_0, kmer_1) )
                 elif align_1 == "31":
-                    print "one exactly happen:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1
+                    print ("one exactly happen:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1)
                     oneHappend.append( (ID, refPos_1, kmer_0, kmer_1) )
                 else:
-                    print "none exactly happen:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1
+                    print ("none exactly happen:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1)
                     zeroHappend.append( (ID, refPos_0, refPos_1, kmer_0, kmer_1) )
 
                 '''
@@ -87,8 +87,8 @@ def read_snp_sam(filename):
                         print ID, align_0, align_1
                 '''    
                     
-    print len(TP), zeroHappen, oneHappen, bothHappen
-    print len(TP) + zeroHappen + oneHappen + bothHappen, count
+    print (len(TP), zeroHappen, oneHappen, bothHappen)
+    print (len(TP) + zeroHappen + oneHappen + bothHappen, count)
 
         
 def read_indel_sam(filename):
@@ -138,9 +138,9 @@ def read_indel_sam(filename):
                         midCnt = tools.count_mid_same(kmer_0)
                         indelCount += 1.0/midCnt  
                 else:        
-                    print "FP:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1
-                    print "alt align", alt_align_0
-                    print "alt align", alt_align_1
+                    print ("FP:", ID, align_0, align_1, "refpos:", refPos_0, refPos_1)
+                    print ("alt align", alt_align_0)
+                    print ("alt align", alt_align_1)
                     '''
                     bothHappen += 1
                     elif align_0 == "31" or align_1 == "31":
@@ -157,9 +157,9 @@ def read_indel_sam(filename):
                         print ID, align_0, align_1
                     '''    
                     
-    print "TP number:", len(TP)
-    print "FP number:", count-len(TP)
-    print "TP indel number:", indelCount
+    print ("TP number:", len(TP))
+    print ("FP number:", count-len(TP))
+    print ("TP indel number:", indelCount)
 
 
 def read_vcf(filename):
@@ -214,11 +214,18 @@ def read_multip_columns(filename):
     with open(filename, "r") as f:
         for line in f:
             words= line.strip().split()
-            pair_kmer.append(words)
+            w = []
+            for ele in words:
+                if ele.isdigit():
+                    w.append(int(ele))
+                else:
+                    w.append(ele)
+            pair_kmer.append(w)
+    print (pair_kmer[0])        
     return pair_kmer      
 
 
-def read2columns(filename):
+def read_2_int_columns(filename):
     ID2ID = {}
     with open(filename, "r") as f:
         for line in f:
@@ -226,6 +233,16 @@ def read2columns(filename):
             ID2ID[ int(words[0]) ] = int(words[1])
     
     return ID2ID       
+
+
+def read_2_columns(filename):
+    kmers = {}
+    with open(filename, "r") as f:
+        for line in f:
+            words = line.strip().split()
+            kmers[ words[0] ] = int(words[1])
+    
+    return kmers    
 
 def read1column(filename, pos):
 
@@ -259,7 +276,6 @@ def get_diff(filename, pos):
 
 
 def read1column_str(filename):
-
     ID = set()
     with open(filename, "r") as f:
         for line in f:
@@ -288,4 +304,3 @@ def read_matrix(filename):
             readID += 1
     return groupID, reads     
             
-#get_diff("SNP_pos", 0)
