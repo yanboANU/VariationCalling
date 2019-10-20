@@ -7,7 +7,14 @@
 To download **KmerCalling**, you have to install the following software
 <pre><code>
 (1) DSK: 
+
 (2) findGSE: 
+first install dependencies required by findGSE under R
+R
+install.packages("pracma")
+install.packages("fGarch")
+q("no")
+
 wget https://github.com/schneebergerlab/findGSE/archive/master.zip
 unzip master.zip
 tar -czvf findGSE-master.tar.gz findGSE-master/
