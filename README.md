@@ -10,6 +10,7 @@ To download **KmerCalling**, you have to install the following software
 (2) findGSE: 
 wget https://github.com/schneebergerlab/findGSE/archive/master.zip
 unzip master.zip
+tar -czvf findGSE-master.tar.gz findGSE-master/
 R
 install.packages("findGSE-master.tar.gz")
 q("no")
